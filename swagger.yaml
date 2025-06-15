@@ -1,0 +1,423 @@
+openapi: 3.0.0
+info:
+  title: Node.js Blog Application API
+  version: 1.0.0
+  description: A simple RESTful API for a blog application with user authentication and blog management.
+servers:
+  - url: http://localhost:5000/api
+    description: Local Development Server
+tags:
+  - name: Authentication
+    description: User signup and login operations.
+  - name: Users
+    description: User profile management.
+  - name: Blogs
+    description: Blog post CRUD operations.
+  - name: Comments
+    description: Commenting system for blog posts.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    UserSignup:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: User's email address.
+        password:
+          type: string
+          format: password
+          description: User's password (min 6 characters).
+        profileImage:
+          type: string
+          format: binary
+          description: User's profile image file.
+    UserLogin:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: User's email address.
+        password:
+          type: string
+          format: password
+          description: User's password.
+    BlogCreate:
+      type: object
+      required:
+        - title
+        - description
+      properties:
+        title:
+          type: string
+          description: Title of the blog post.
+        blogImage:
+          type: string
+          format: binary
+          description: Image for the blog post.
+        description:
+          type: string
+          description: Full content/description of the blog post.
+    BlogUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          description: Title of the blog post.
+        blogImage:
+          type: string
+          format: binary
+          description: New image for the blog post (optional).
+        currentImage:
+          type: string
+          description: Current image path if no new image is uploaded.
+        description:
+          type: string
+          description: Full content/description of the blog post.
+    CommentCreate:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          description: The comment text.
+        parentCommentId:
+          type: string
+          description: ID of the comment being replied to (optional).
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+          description: A descriptive error message.
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              msg:
+                type: string
+                description: Validation error message.
+              param:
+                type: string
+                description: The field that caused the error.
+              location:
+                type: string
+                description: Location of the parameter (e.g., body).
+
+paths:
+  /auth/signup:
+    post:
+      summary: Register a new user
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserSignup'
+      responses:
+        '201':
+          description: User registered successfully.
+        '400':
+          description: Bad request (e.g., validation errors, user exists).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error.
+
+  /auth/login:
+    post:
+      summary: Log in a user
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLogin'
+      responses:
+        '200':
+          description: User logged in successfully. Returns JWT token.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  token:
+                    type: string
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      email:
+                        type: string
+                      profileImage:
+                        type: string
+        '400':
+          description: Invalid credentials or bad request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error.
+
+  /users/profile:
+    get:
+      summary: Get authenticated user's profile
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile retrieved successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  email:
+                    type: string
+                  profileImage:
+                    type: string
+        '401':
+          description: Unauthorized (no token or invalid token).
+        '404':
+          description: User not found.
+        '500':
+          description: Server error.
+
+  /blogs:
+    post:
+      summary: Create a new blog post
+      tags:
+        - Blogs
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BlogCreate'
+      responses:
+        '201':
+          description: Blog created successfully.
+        '400':
+          description: Bad request (e.g., validation errors, missing image).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized.
+        '500':
+          description: Server error.
+    get:
+      summary: Get all blog posts
+      tags:
+        - Blogs
+      responses:
+        '200':
+          description: List of blog posts.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    _id:
+                      type: string
+                    title:
+                      type: string
+                    image:
+                      type: string
+                    description:
+                      type: string
+                    author:
+                      type: object
+                      properties:
+                        _id:
+                          type: string
+                        email:
+                          type: string
+                        profileImage:
+                          type: string
+                    createdAt:
+                      type: string
+                      format: date-time
+        '500':
+          description: Server error.
+
+  /blogs/{id}:
+    get:
+      summary: Get a single blog post by ID
+      tags:
+        - Blogs
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+          required: true
+          description: ID of the blog post.
+      responses:
+        '200':
+          description: Blog post details.
+        '404':
+          description: Blog not found.
+        '500':
+          description: Server error.
+    put:
+      summary: Update a blog post by ID
+      tags:
+        - Blogs
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+          required: true
+          description: ID of the blog post to update.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BlogUpdate'
+      responses:
+        '200':
+          description: Blog updated successfully.
+        '400':
+          description: Bad request (e.g., validation errors).
+        '401':
+          description: Unauthorized (not blog author or invalid token).
+        '404':
+          description: Blog not found.
+        '500':
+          description: Server error.
+    delete:
+      summary: Delete a blog post by ID
+      tags:
+        - Blogs
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+          required: true
+          description: ID of the blog post to delete.
+      responses:
+        '200':
+          description: Blog removed successfully.
+        '401':
+          description: Unauthorized (not blog author or invalid token).
+        '404':
+          description: Blog not found.
+        '500':
+          description: Server error.
+
+  /comments/{blogId}:
+    post:
+      summary: Add a comment to a blog post
+      tags:
+        - Comments
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: blogId
+          schema:
+            type: string
+          required: true
+          description: ID of the blog post to comment on.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentCreate'
+      responses:
+        '201':
+          description: Comment added successfully.
+        '400':
+          description: Bad request (e.g., validation errors).
+        '401':
+          description: Unauthorized.
+        '404':
+          description: Blog not found.
+        '500':
+          description: Server error.
+    get:
+      summary: Get all comments for a blog post
+      tags:
+        - Comments
+      parameters:
+        - in: path
+          name: blogId
+          schema:
+            type: string
+          required: true
+          description: ID of the blog post to retrieve comments for.
+      responses:
+        '200':
+          description: List of comments for the blog post.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    _id:
+                      type: string
+                    blog:
+                      type: string
+                    user:
+                      type: object
+                      properties:
+                        _id:
+                          type: string
+                        email:
+                          type: string
+                        profileImage:
+                          type: string
+                    content:
+                      type: string
+                    parentComment:
+                      type: string
+                      nullable: true
+                    createdAt:
+                      type: string
+                      format: date-time
+        '500':
+          description: Server error.
